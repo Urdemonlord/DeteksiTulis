@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Load config.js first -->
     <script src="config.js"></script>
-    <!-- Load other scripts with defer -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" defer></script>
+    <!-- Load other scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
     <script src="https://docs.opencv.org/4.5.4/opencv.js" async></script>
-    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js" defer></script>
-    <script src="handwriting.canvas.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js"></script>
+    <script src="handwriting.canvas.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
@@ -264,7 +264,7 @@
             <h3>Metode Input:</h3>
             <label class="file-upload">
                 Pilih Gambar
-                <input type="file" id="imageUpload" accept="image/*" onchange="handleImageUpload(event)">
+                <input type="file" id="imageUpload" accept="image/*">
             </label>
             <div class="button-group">
                 <button onclick="toggleCamera()">Buka Kamera</button>
@@ -326,13 +326,177 @@
     </div>
 
     <script>
-        var canvas = new handwriting.Canvas(document.getElementById("canvas"));
+        // Inisialisasi variabel global
+        let canvas = null;
         let stream = null;
         let mobilenetModel = null;
         let cocoSsdModel = null;
         let worker = null;
         let geminiApiKey = null;
-        
+
+        // Inisialisasi saat dokumen dimuat
+        document.addEventListener('DOMContentLoaded', function() {
+            // Inisialisasi canvas
+            canvas = new handwriting.Canvas(document.getElementById("canvas"));
+            
+            // Set callback untuk menampilkan hasil
+            canvas.setCallBack(function(data, err) {
+                if(err) {
+                    document.getElementById("result").innerHTML = "Error: " + err;
+                } else {
+                    document.getElementById("result").innerHTML = "Hasil: " + data.join(", ");
+                }
+            });
+
+            // Set opsi untuk bahasa Indonesia
+            canvas.setOptions({
+                language: "id",
+                numOfReturn: 5
+            });
+
+            // Tambahkan event listener untuk upload gambar
+            document.getElementById('imageUpload').addEventListener('change', handleImageUpload);
+
+            // Tambahkan event listener untuk radio button pemrosesan gambar
+            const radioButtons = document.querySelectorAll('input[name="imageMode"]');
+            radioButtons.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const canvas = document.getElementById('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    if (imageData.width > 0 && imageData.height > 0) {
+                        const processedCanvas = processImage(canvas, this.value);
+                        const processedPreview = document.getElementById('processedPreview');
+                        processedPreview.src = processedCanvas.toDataURL();
+                    }
+                });
+            });
+        });
+
+        // Fungsi untuk mengenali gambar
+        function recognize() {
+            if (!canvas) return;
+            canvas.recognize();
+        }
+
+        // Fungsi untuk mengenali teks
+        async function recognizeImage() {
+            if (!canvas) return;
+            const loading = document.getElementById('loading');
+            const progressBar = document.getElementById('progressBar');
+            const result = document.getElementById('result');
+            
+            try {
+                const canvasData = canvas.canvas.toDataURL();
+                if (canvasData === 'data:,' || canvasData === 'data:image/png;base64,') {
+                    throw new Error('Canvas kosong. Silakan gambar atau upload gambar terlebih dahulu.');
+                }
+
+                loading.style.display = 'block';
+                result.innerHTML = "Menginisialisasi model AI...";
+                
+                // Inisialisasi model terlebih dahulu
+                const initialized = await initModels();
+                if (!initialized) {
+                    throw new Error('Gagal menginisialisasi model AI. Silakan refresh halaman dan coba lagi.');
+                }
+
+                result.innerHTML = "Menganalisis gambar...";
+                const mode = document.querySelector('input[name="imageMode"]:checked').value;
+                const img = new Image();
+                
+                img.onload = async () => {
+                    try {
+                        const processedCanvas = processImage(img, mode);
+                        const processedPreview = document.getElementById('processedPreview');
+                        processedPreview.src = processedCanvas.toDataURL();
+                        
+                        // Analisis dengan model lokal
+                        const localAnalysis = await analyzeImage(processedCanvas);
+                        
+                        // Tampilkan hasil
+                        let resultHTML = '<div class="result-container">';
+                        
+                        if (localAnalysis.text) {
+                            resultHTML += `
+                                <div class="text-result">
+                                    <h4>Teks Terdeteksi:</h4>
+                                    ${localAnalysis.text}<br>
+                                    <small class="confidence-${localAnalysis.confidence >= 80 ? 'high' : localAnalysis.confidence >= 60 ? 'medium' : 'low'}">
+                                        Tingkat kepercayaan: ${Math.round(localAnalysis.confidence)}%
+                                    </small>
+                                </div>
+                            `;
+                        }
+                        
+                        if (localAnalysis.objects.length > 0) {
+                            resultHTML += `
+                                <div class="objects-result">
+                                    <h4>Objek Terdeteksi:</h4>
+                                    <ul>
+                                        ${localAnalysis.objects.map(obj => `
+                                            <li>${obj.label} (${Math.round(obj.confidence * 100)}%)</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            `;
+                        }
+
+                        // Analisis dengan Gemini
+                        try {
+                            result.innerHTML = resultHTML + '<div class="loading-message">Menganalisis dengan Gemini...</div>';
+                            const geminiAnalysis = await analyzeWithGemini(processedCanvas);
+                            
+                            if (geminiAnalysis) {
+                                resultHTML += `
+                                    <div class="gemini-result">
+                                        <h4>Analisis Detail:</h4>
+                                        <p>${geminiAnalysis}</p>
+                                    </div>
+                                `;
+                            }
+                        } catch (error) {
+                            console.error('Error in Gemini analysis:', error);
+                            resultHTML += `
+                                <div class="error-message">
+                                    <h4>Analisis Gemini:</h4>
+                                    <p>Gagal mendapatkan analisis dari Gemini: ${error.message}</p>
+                                </div>
+                            `;
+                        }
+                        
+                        resultHTML += '</div>';
+                        result.innerHTML = resultHTML;
+                    } catch (error) {
+                        console.error('Error dalam pemrosesan gambar:', error);
+                        result.innerHTML = `<div class="error-message">Gagal memproses gambar: ${error.message}</div>`;
+                    } finally {
+                        loading.style.display = 'none';
+                        progressBar.style.width = '0%';
+                    }
+                };
+
+                img.onerror = () => {
+                    throw new Error('Gagal memuat gambar');
+                };
+
+                img.src = canvas.canvas.toDataURL();
+            } catch (error) {
+                console.error('Error detail:', error);
+                result.innerHTML = `<div class="error-message">${error.message}</div>`;
+                loading.style.display = 'none';
+                progressBar.style.width = '0%';
+            }
+        }
+
+        // Fungsi untuk membersihkan canvas
+        function clearCanvas() {
+            if (!canvas) return;
+            canvas.erase();
+            document.getElementById("result").innerHTML = "";
+        }
+
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
@@ -358,10 +522,14 @@
         // Inisialisasi semua model
         async function initModels() {
             try {
+                console.log('Memulai inisialisasi model...');
+                
                 // Inisialisasi Tesseract
                 if (!worker) {
+                    console.log('Menginisialisasi Tesseract...');
                     worker = await Tesseract.createWorker({
                         logger: m => {
+                            console.log('Tesseract progress:', m);
                             if (m.status === 'recognizing text') {
                                 const progress = Math.round(m.progress * 100);
                                 document.getElementById('progressBar').style.width = `${progress}%`;
@@ -387,18 +555,29 @@
                         textord_parallel_skew_angle: '0.1',
                         textord_parallel_skew_angle_tolerance: '0.1'
                     });
+                    console.log('Tesseract berhasil diinisialisasi');
                 }
 
                 // Inisialisasi MobileNet untuk klasifikasi gambar
                 if (!mobilenetModel) {
-                    mobilenetModel = await mobilenet.load();
+                    console.log('Menginisialisasi MobileNet...');
+                    mobilenetModel = await mobilenet.load({
+                        version: 2,
+                        alpha: 1.0
+                    });
+                    console.log('MobileNet berhasil diinisialisasi');
                 }
 
                 // Inisialisasi COCO-SSD untuk deteksi objek
                 if (!cocoSsdModel) {
-                    cocoSsdModel = await cocoSsd.load();
+                    console.log('Menginisialisasi COCO-SSD...');
+                    cocoSsdModel = await cocoSsd.load({
+                        base: 'mobilenet_v2'
+                    });
+                    console.log('COCO-SSD berhasil diinisialisasi');
                 }
 
+                console.log('Semua model berhasil diinisialisasi');
                 return true;
             } catch (error) {
                 console.error('Error initializing models:', error);
@@ -550,149 +729,6 @@
             }
         }
 
-        // Modifikasi fungsi recognizeImage untuk menangani error dengan lebih baik
-        async function recognizeImage() {
-            const loading = document.getElementById('loading');
-            const progressBar = document.getElementById('progressBar');
-            const result = document.getElementById('result');
-            
-            try {
-                const canvasData = canvas.canvas.toDataURL();
-                if (canvasData === 'data:,' || canvasData === 'data:image/png;base64,') {
-                    throw new Error('Canvas kosong. Silakan gambar atau upload gambar terlebih dahulu.');
-                }
-
-                loading.style.display = 'block';
-                result.innerHTML = "Menginisialisasi model AI...";
-                
-                // Inisialisasi model terlebih dahulu
-                const initialized = await initModels();
-                if (!initialized) {
-                    throw new Error('Gagal menginisialisasi model AI. Silakan refresh halaman dan coba lagi.');
-                }
-
-                result.innerHTML = "Menganalisis gambar...";
-                const mode = document.querySelector('input[name="imageMode"]:checked').value;
-                const img = new Image();
-                
-                img.onload = async () => {
-                    try {
-                        const processedCanvas = processImage(img, mode);
-                        const processedPreview = document.getElementById('processedPreview');
-                        processedPreview.src = processedCanvas.toDataURL();
-                        
-                        // Analisis dengan model lokal terlebih dahulu
-                        const localAnalysis = await analyzeImage(processedCanvas);
-                        
-                        // Tampilkan hasil
-                        let resultHTML = '<div class="result-container">';
-                        
-                        // Hasil dari model lokal
-                        if (localAnalysis.text) {
-                            resultHTML += `
-                                <div class="text-result">
-                                    <h4>Teks Terdeteksi:</h4>
-                                    ${localAnalysis.text}<br>
-                                    <small class="confidence-${localAnalysis.confidence >= 80 ? 'high' : localAnalysis.confidence >= 60 ? 'medium' : 'low'}">
-                                        Tingkat kepercayaan: ${Math.round(localAnalysis.confidence)}%
-                                    </small>
-                                </div>
-                            `;
-                        }
-                        
-                        if (localAnalysis.objects.length > 0) {
-                            resultHTML += `
-                                <div class="objects-result">
-                                    <h4>Objek Terdeteksi:</h4>
-                                    <ul>
-                                        ${localAnalysis.objects.map(obj => `
-                                            <li>${obj.label} (${Math.round(obj.confidence * 100)}%)</li>
-                                        `).join('')}
-                                    </ul>
-                                </div>
-                            `;
-                        }
-
-                        // Analisis dengan Gemini setelah menampilkan hasil lokal
-                        try {
-                            result.innerHTML = resultHTML + '<div class="loading-message">Menganalisis dengan Gemini...</div>';
-                            const geminiAnalysis = await analyzeWithGemini(processedCanvas);
-                            
-                            if (geminiAnalysis) {
-                                resultHTML += `
-                                    <div class="gemini-result">
-                                        <h4>Analisis Detail:</h4>
-                                        <p>${geminiAnalysis}</p>
-                                    </div>
-                                `;
-                            }
-                        } catch (error) {
-                            console.error('Error in Gemini analysis:', error);
-                            resultHTML += `
-                                <div class="error-message">
-                                    <h4>Analisis Gemini:</h4>
-                                    <p>Gagal mendapatkan analisis dari Gemini: ${error.message}</p>
-                                </div>
-                            `;
-                        }
-                        
-                        resultHTML += '</div>';
-                        result.innerHTML = resultHTML;
-                    } catch (error) {
-                        console.error('Error dalam pemrosesan gambar:', error);
-                        result.innerHTML = `<div class="error-message">Gagal memproses gambar: ${error.message}</div>`;
-                    } finally {
-                        loading.style.display = 'none';
-                        progressBar.style.width = '0%';
-                    }
-                };
-
-                img.onerror = () => {
-                    throw new Error('Gagal memuat gambar');
-                };
-
-                img.src = canvas.canvas.toDataURL();
-            } catch (error) {
-                console.error('Error detail:', error);
-                result.innerHTML = `<div class="error-message">${error.message}</div>`;
-                loading.style.display = 'none';
-                progressBar.style.width = '0%';
-            }
-        }
-
-        // Tambahkan style untuk hasil Gemini
-        const style = document.createElement('style');
-        style.textContent = `
-            .gemini-result {
-                background: #f0f9ff;
-                padding: 15px;
-                border-radius: 8px;
-                margin-bottom: 20px;
-                border: 1px solid #bae6fd;
-            }
-            
-            .gemini-result h4 {
-                color: #0369a1;
-                margin-bottom: 10px;
-            }
-            
-            .gemini-result p {
-                white-space: pre-wrap;
-                line-height: 1.6;
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Fungsi untuk membersihkan model saat halaman ditutup
-        window.addEventListener('beforeunload', async () => {
-            if (worker) {
-                await worker.terminate();
-                worker = null;
-            }
-            mobilenetModel = null;
-            cocoSsdModel = null;
-        });
-
         // Fungsi untuk memproses gambar dengan preprocessing yang lebih baik
         function processImage(imageData, mode) {
             try {
@@ -717,6 +753,54 @@
 
                 const data = imgData.data;
 
+                // Preprocessing dasar untuk semua mode
+                // 1. Normalisasi kontras
+                let min = 255, max = 0;
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    min = Math.min(min, avg);
+                    max = Math.max(max, avg);
+                }
+                const range = max - min;
+                if (range > 0) {
+                    for (let i = 0; i < data.length; i += 4) {
+                        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                        const normalized = ((avg - min) / range) * 255;
+                        data[i] = data[i + 1] = data[i + 2] = normalized;
+                    }
+                }
+
+                // 2. Noise reduction dengan Gaussian blur
+                const tempData = new Uint8ClampedArray(data);
+                const kernelSize = 3;
+                const kernel = [
+                    [1, 2, 1],
+                    [2, 4, 2],
+                    [1, 2, 1]
+                ];
+                const kernelSum = 16;
+
+                for (let y = 1; y < canvas.height - 1; y++) {
+                    for (let x = 1; x < canvas.width - 1; x++) {
+                        const idx = (y * canvas.width + x) * 4;
+                        let sumR = 0, sumG = 0, sumB = 0;
+
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                const nidx = ((y + ky) * canvas.width + (x + kx)) * 4;
+                                const weight = kernel[ky + 1][kx + 1];
+                                sumR += tempData[nidx] * weight;
+                                sumG += tempData[nidx + 1] * weight;
+                                sumB += tempData[nidx + 2] * weight;
+                            }
+                        }
+
+                        data[idx] = sumR / kernelSum;
+                        data[idx + 1] = sumG / kernelSum;
+                        data[idx + 2] = sumB / kernelSum;
+                    }
+                }
+
                 switch(mode) {
                     case 'original':
                         return canvas;
@@ -724,7 +808,7 @@
                     case 'grayscale':
                         // Konversi ke grayscale dengan bobot yang lebih baik
                         for (let i = 0; i < data.length; i += 4) {
-                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            const avg = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
                             data[i] = data[i + 1] = data[i + 2] = avg;
                         }
                         break;
@@ -732,27 +816,28 @@
                     case 'median':
                         // Konversi ke grayscale dulu
                         for (let i = 0; i < data.length; i += 4) {
-                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            const avg = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
                             data[i] = data[i + 1] = data[i + 2] = avg;
                         }
                         
-                        // Terapkan median filter dengan kernel size yang lebih besar
-                        const tempData = new Uint8ClampedArray(data);
-                        const kernelSize = 5; // Ukuran kernel ditingkatkan
-                        for (let y = kernelSize; y < canvas.height - kernelSize; y++) {
-                            for (let x = kernelSize; x < canvas.width - kernelSize; x++) {
+                        // Median filter dengan kernel size yang lebih besar
+                        const medianTempData = new Uint8ClampedArray(data);
+                        const medianKernelSize = 5;
+                        for (let y = medianKernelSize; y < canvas.height - medianKernelSize; y++) {
+                            for (let x = medianKernelSize; x < canvas.width - medianKernelSize; x++) {
                                 const idx = (y * canvas.width + x) * 4;
                                 const neighbors = [];
                                 
-                                for (let ky = -kernelSize; ky <= kernelSize; ky++) {
-                                    for (let kx = -kernelSize; kx <= kernelSize; kx++) {
+                                for (let ky = -medianKernelSize; ky <= medianKernelSize; ky++) {
+                                    for (let kx = -medianKernelSize; kx <= medianKernelSize; kx++) {
                                         const nidx = ((y + ky) * canvas.width + (x + kx)) * 4;
-                                        neighbors.push(tempData[nidx]);
+                                        neighbors.push(medianTempData[nidx]);
                                     }
                                 }
                                 
                                 neighbors.sort((a, b) => a - b);
-                                data[idx] = data[idx + 1] = data[idx + 2] = neighbors[Math.floor(neighbors.length / 2)];
+                                const median = neighbors[Math.floor(neighbors.length / 2)];
+                                data[idx] = data[idx + 1] = data[idx + 2] = median;
                             }
                         }
                         break;
@@ -760,13 +845,15 @@
                     case 'adaptive':
                         // Konversi ke grayscale dulu
                         for (let i = 0; i < data.length; i += 4) {
-                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            const avg = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
                             data[i] = data[i + 1] = data[i + 2] = avg;
                         }
                         
                         // Adaptive thresholding dengan parameter yang dioptimalkan
-                        const blockSize = 35; // Ukuran blok ditingkatkan
-                        const C = 7; // Konstanta ditingkatkan untuk kontras yang lebih baik
+                        const blockSize = 35;
+                        const C = 7;
+                        const tempAdaptiveData = new Uint8ClampedArray(data);
+                        
                         for (let y = 0; y < canvas.height; y++) {
                             for (let x = 0; x < canvas.width; x++) {
                                 const idx = (y * canvas.width + x) * 4;
@@ -776,13 +863,13 @@
                                 for (let by = Math.max(0, y - blockSize); by <= Math.min(canvas.height - 1, y + blockSize); by++) {
                                     for (let bx = Math.max(0, x - blockSize); bx <= Math.min(canvas.width - 1, x + blockSize); bx++) {
                                         const bidx = (by * canvas.width + bx) * 4;
-                                        sum += data[bidx];
+                                        sum += tempAdaptiveData[bidx];
                                         count++;
                                     }
                                 }
                                 const threshold = (sum / count) - C;
                                 
-                                const value = data[idx] > threshold ? 255 : 0;
+                                const value = tempAdaptiveData[idx] > threshold ? 255 : 0;
                                 data[idx] = data[idx + 1] = data[idx + 2] = value;
                             }
                         }
@@ -791,67 +878,75 @@
                     case 'full':
                         // Konversi ke grayscale
                         for (let i = 0; i < data.length; i += 4) {
-                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            const avg = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
                             data[i] = data[i + 1] = data[i + 2] = avg;
                         }
                         
                         // Median filter
-                        const tempData2 = new Uint8ClampedArray(data);
-                        const kernelSize2 = 5;
-                        for (let y = kernelSize2; y < canvas.height - kernelSize2; y++) {
-                            for (let x = kernelSize2; x < canvas.width - kernelSize2; x++) {
+                        const fullTempData = new Uint8ClampedArray(data);
+                        const fullKernelSize = 5;
+                        for (let y = fullKernelSize; y < canvas.height - fullKernelSize; y++) {
+                            for (let x = fullKernelSize; x < canvas.width - fullKernelSize; x++) {
                                 const idx = (y * canvas.width + x) * 4;
                                 const neighbors = [];
                                 
-                                for (let ky = -kernelSize2; ky <= kernelSize2; ky++) {
-                                    for (let kx = -kernelSize2; kx <= kernelSize2; kx++) {
+                                for (let ky = -fullKernelSize; ky <= fullKernelSize; ky++) {
+                                    for (let kx = -fullKernelSize; kx <= fullKernelSize; kx++) {
                                         const nidx = ((y + ky) * canvas.width + (x + kx)) * 4;
-                                        neighbors.push(tempData2[nidx]);
+                                        neighbors.push(fullTempData[nidx]);
                                     }
                                 }
                                 
                                 neighbors.sort((a, b) => a - b);
-                                data[idx] = data[idx + 1] = data[idx + 2] = neighbors[Math.floor(neighbors.length / 2)];
+                                const median = neighbors[Math.floor(neighbors.length / 2)];
+                                data[idx] = data[idx + 1] = data[idx + 2] = median;
                             }
                         }
                         
                         // Adaptive thresholding
-                        const blockSize2 = 35;
-                        const C2 = 7;
+                        const fullBlockSize = 35;
+                        const fullC = 7;
+                        const fullTempAdaptiveData = new Uint8ClampedArray(data);
+                        
                         for (let y = 0; y < canvas.height; y++) {
                             for (let x = 0; x < canvas.width; x++) {
                                 const idx = (y * canvas.width + x) * 4;
                                 
                                 let sum = 0;
                                 let count = 0;
-                                for (let by = Math.max(0, y - blockSize2); by <= Math.min(canvas.height - 1, y + blockSize2); by++) {
-                                    for (let bx = Math.max(0, x - blockSize2); bx <= Math.min(canvas.width - 1, x + blockSize2); bx++) {
+                                for (let by = Math.max(0, y - fullBlockSize); by <= Math.min(canvas.height - 1, y + fullBlockSize); by++) {
+                                    for (let bx = Math.max(0, x - fullBlockSize); bx <= Math.min(canvas.width - 1, x + fullBlockSize); bx++) {
                                         const bidx = (by * canvas.width + bx) * 4;
-                                        sum += data[bidx];
+                                        sum += fullTempAdaptiveData[bidx];
                                         count++;
                                     }
                                 }
-                                const threshold = (sum / count) - C2;
+                                const threshold = (sum / count) - fullC;
                                 
-                                const value = data[idx] > threshold ? 255 : 0;
+                                const value = fullTempAdaptiveData[idx] > threshold ? 255 : 0;
                                 data[idx] = data[idx + 1] = data[idx + 2] = value;
                             }
                         }
 
-                        // Tambahan: Noise reduction
-                        const noiseReduction = new Uint8ClampedArray(data);
+                        // Tambahan: Noise reduction dengan edge preservation
+                        const edgeTempData = new Uint8ClampedArray(data);
                         for (let y = 1; y < canvas.height - 1; y++) {
                             for (let x = 1; x < canvas.width - 1; x++) {
                                 const idx = (y * canvas.width + x) * 4;
                                 const neighbors = [
-                                    noiseReduction[idx - 4],
-                                    noiseReduction[idx + 4],
-                                    noiseReduction[idx - canvas.width * 4],
-                                    noiseReduction[idx + canvas.width * 4]
+                                    edgeTempData[idx - 4],
+                                    edgeTempData[idx + 4],
+                                    edgeTempData[idx - canvas.width * 4],
+                                    edgeTempData[idx + canvas.width * 4]
                                 ];
                                 
                                 const avg = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
-                                if (Math.abs(data[idx] - avg) > 50) {
+                                const current = edgeTempData[idx];
+                                
+                                // Preserve edges
+                                if (Math.abs(current - avg) > 30) {
+                                    data[idx] = data[idx + 1] = data[idx + 2] = current;
+                                } else {
                                     data[idx] = data[idx + 1] = data[idx + 2] = avg;
                                 }
                             }
@@ -865,30 +960,6 @@
                 console.error('Error dalam processImage:', error);
                 throw error;
             }
-        }
-
-        // Set callback untuk menampilkan hasil
-        canvas.setCallBack(function(data, err) {
-            if(err) {
-                document.getElementById("result").innerHTML = "Error: " + err;
-            } else {
-                document.getElementById("result").innerHTML = "Hasil: " + data.join(", ");
-            }
-        });
-
-        // Set opsi untuk bahasa Indonesia
-        canvas.setOptions({
-            language: "id",
-            numOfReturn: 5
-        });
-
-        function recognize() {
-            canvas.recognize();
-        }
-
-        function clearCanvas() {
-            canvas.erase();
-            document.getElementById("result").innerHTML = "";
         }
 
         // Perbaikan fungsi kamera
@@ -1030,7 +1101,7 @@
             }
         });
 
-        // Modifikasi fungsi handleImageUpload
+        // Fungsi untuk menangani upload gambar
         function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) {
@@ -1100,6 +1171,16 @@
             
             reader.readAsDataURL(file);
         }
+
+        // Tambahkan event listener untuk membersihkan model saat halaman ditutup
+        window.addEventListener('beforeunload', async () => {
+            if (worker) {
+                await worker.terminate();
+                worker = null;
+            }
+            mobilenetModel = null;
+            cocoSsdModel = null;
+        });
     </script>
 </body>
 </html> 
