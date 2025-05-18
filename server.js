@@ -55,7 +55,8 @@ app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok',
         apiKeyConfigured: !!GEMINI_API_KEY,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        serverUrl: req.protocol + '://' + req.get('host')
     });
 });
 

@@ -500,19 +500,21 @@
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
-                // Gunakan URL relatif untuk menghindari masalah CORS
-                const apiUrl = window.location.origin + '/api/get-key';
+                // Gunakan URL dari konfigurasi
+                const apiUrl = window.appConfig.apiUrl + '/api/get-key';
                 console.log('Mencoba mengakses API di:', apiUrl);
                 
                 const response = await fetch(apiUrl);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ message: 'Gagal mendapatkan API key' }));
-                    throw new Error(errorData.message || `Failed to get API key: ${response.status}`);
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                 }
+                
                 const data = await response.json();
                 if (!data.apiKey) {
                     throw new Error('API key tidak ditemukan dalam response');
                 }
+                
                 console.log('API key berhasil didapatkan');
                 return data.apiKey;
             } catch (error) {
