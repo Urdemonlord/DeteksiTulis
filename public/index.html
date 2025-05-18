@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Load config.js first -->
     <script src="config.js"></script>
+    <script>
+        // Tambahkan logging untuk memastikan config dimuat
+        console.log('Current origin:', window.location.origin);
+        console.log('App config:', window.appConfig);
+    </script>
     <!-- Load other scripts -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
@@ -500,17 +505,32 @@
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
+                // Log konfigurasi saat ini
+                console.log('Current config:', window.appConfig);
+                console.log('Current origin:', window.location.origin);
+                
+                // Pastikan config tersedia
+                if (!window.appConfig || !window.appConfig.apiUrl) {
+                    throw new Error('Konfigurasi tidak tersedia');
+                }
+
                 // Gunakan URL dari konfigurasi
                 const apiUrl = window.appConfig.apiUrl + '/api/get-key';
                 console.log('Mencoba mengakses API di:', apiUrl);
                 
                 const response = await fetch(apiUrl);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: 'Gagal mendapatkan API key' }));
-                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                    const text = await response.text();
+                    console.error('Error response:', text);
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
+                console.log('Response data:', { ...data, apiKey: data.apiKey ? '***' : undefined });
+                
                 if (!data.apiKey) {
                     throw new Error('API key tidak ditemukan dalam response');
                 }
