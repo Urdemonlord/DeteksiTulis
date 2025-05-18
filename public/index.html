@@ -4,11 +4,24 @@
     <title>Pengenalan Tulisan Tangan</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Load config.js first -->
-    <script src="config.js"></script>
     <script>
-        // Tambahkan logging untuk memastikan config dimuat
-        console.log('Current origin:', window.location.origin);
-        console.log('App config:', window.appConfig);
+        // Konfigurasi aplikasi
+        window.appConfig = {
+            apiUrl: 'https://deteksi-tulis.vercel.app', // URL Vercel deployment
+            allowedFileTypes: ['image/jpeg', 'image/png', 'image/gif'],
+            maxFileSize: 5 * 1024 * 1024 // 5MB
+        };
+        
+        // Cek ketersediaan konfigurasi
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.appConfig) {
+                console.error('Konfigurasi tidak tersedia');
+            } else {
+                console.log('Konfigurasi berhasil dimuat:', {
+                    apiUrl: window.appConfig.apiUrl
+                });
+            }
+        });
     </script>
     <!-- Load other scripts -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
