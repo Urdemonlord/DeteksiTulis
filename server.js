@@ -12,7 +12,7 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+    origin: '*', // Izinkan semua origin untuk development
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -54,7 +54,8 @@ app.get('/api/get-key', (req, res) => {
 app.get('/api/health', (req, res) => {
     res.json({ 
         status: 'ok',
-        apiKeyConfigured: !!GEMINI_API_KEY
+        apiKeyConfigured: !!GEMINI_API_KEY,
+        environment: process.env.NODE_ENV || 'development'
     });
 });
 
@@ -67,9 +68,10 @@ app.use((err, req, res, next) => {
     });
 });
 
+// Start server
 app.listen(port, () => {
     console.log(`Server berjalan di port ${port}`);
     console.log('Environment variables:');
     console.log('- GEMINI_API_KEY:', GEMINI_API_KEY ? 'Terkonfigurasi' : 'Tidak terkonfigurasi');
-    console.log('- ALLOWED_ORIGINS:', process.env.ALLOWED_ORIGINS || '*');
+    console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
 }); 

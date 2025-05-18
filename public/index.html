@@ -501,9 +501,12 @@
         async function getGeminiApiKey() {
             try {
                 // Gunakan URL relatif untuk menghindari masalah CORS
-                const response = await fetch('/api/get-key');
+                const apiUrl = window.location.origin + '/api/get-key';
+                console.log('Mencoba mengakses API di:', apiUrl);
+                
+                const response = await fetch(apiUrl);
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    const errorData = await response.json().catch(() => ({ message: 'Gagal mendapatkan API key' }));
                     throw new Error(errorData.message || `Failed to get API key: ${response.status}`);
                 }
                 const data = await response.json();
