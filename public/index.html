@@ -334,7 +334,7 @@
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
-                const response = await fetch('https://deteksi-tulis.vercel.app/api/get-key');
+                const response = await fetch(`${window.appConfig.apiUrl}/api/get-key`);
                 if (!response.ok) {
                     throw new Error(`Failed to get API key: ${response.status} ${response.statusText}`);
                 }
@@ -345,7 +345,7 @@
                 return data.apiKey;
             } catch (error) {
                 console.error('Error getting API key:', error);
-                throw error; // Re-throw error untuk handling di level atas
+                throw error;
             }
         }
 

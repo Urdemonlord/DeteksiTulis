@@ -12,7 +12,9 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*'
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(express.static('public'));
@@ -23,10 +25,30 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Endpoint untuk mendapatkan API key
 app.get('/api/get-key', (req, res) => {
-    if (!GEMINI_API_KEY) {
-        return res.status(500).json({ error: 'API key tidak dikonfigurasi' });
+    try {
+        if (!GEMINI_API_KEY) {
+            return res.status(500).json({ 
+                error: 'API key tidak dikonfigurasi',
+                message: 'Silakan konfigurasi GEMINI_API_KEY di environment variables'
+            });
+        }
+        res.json({ apiKey: GEMINI_API_KEY });
+    } catch (error) {
+        console.error('Error in /api/get-key:', error);
+        res.status(500).json({ 
+            error: 'Terjadi kesalahan server',
+            message: error.message
+        });
     }
-    res.json({ apiKey: GEMINI_API_KEY });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({
+        error: 'Terjadi kesalahan server',
+        message: err.message
+    });
 });
 
 app.listen(port, () => {
