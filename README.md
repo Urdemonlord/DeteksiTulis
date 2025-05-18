@@ -1,95 +1,74 @@
-# Pengenalan Tulisan Tangan
+# Aplikasi Pengenalan Tulisan Tangan
 
-Aplikasi web untuk mengenali tulisan tangan dan teks dari gambar menggunakan teknologi AI.
+Aplikasi web untuk mengenali tulisan tangan menggunakan Tesseract.js, TensorFlow.js, dan Google Gemini API.
 
 ## Fitur
 
-- Pengenalan tulisan tangan secara real-time
-- Pengenalan teks dari gambar (OCR)
-- Dukungan untuk berbagai metode input:
-  - Menggambar langsung di canvas
-  - Upload gambar
-  - Mengambil foto dengan kamera
-- Pemrosesan gambar dengan berbagai opsi:
-  - Gambar asli
-  - Grayscale
-  - Median Filter
-  - Adaptive Threshold
-  - Full Processing
-- Tampilan hasil dengan tingkat kepercayaan
-- Antarmuka yang responsif dan modern
+- Pengenalan teks dari gambar
+- Deteksi objek
+- Klasifikasi gambar
+- Analisis gambar menggunakan Gemini API
+- Berbagai mode pemrosesan gambar
 
-## Cara Penggunaan
+## Instalasi
 
-1. **Menggambar Tulisan Tangan**
-   - Klik area canvas
-   - Gambar tulisan tangan Anda
-   - Klik "Kenali Gambar" untuk hasil pengenalan
+1. Clone repository ini:
+```bash
+git clone https://github.com/username/handwriting.js.git
+cd handwriting.js
+```
 
-2. **Upload Gambar**
-   - Klik "Pilih Gambar"
-   - Pilih file gambar dari komputer Anda
-   - Gambar akan ditampilkan di canvas
-   - Klik "Kenali Teks" untuk hasil pengenalan
+2. Install dependensi:
+```bash
+npm install
+```
 
-3. **Menggunakan Kamera**
-   - Klik "Buka Kamera"
-   - Posisikan teks dalam frame kamera
-   - Klik "Ambil Foto"
-   - Klik "Kenali Teks" untuk hasil pengenalan
+3. Buat file `.env` dan tambahkan API key Anda:
+```
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+```
 
-4. **Opsi Pemrosesan Gambar**
-   - Pilih mode pemrosesan yang sesuai:
-     - **Gambar Asli**: Tanpa pemrosesan
-     - **Grayscale**: Konversi ke hitam putih
-     - **Median Filter**: Mengurangi noise
-     - **Adaptive Threshold**: Menyesuaikan kontras
-     - **Full Processing**: Kombinasi semua pemrosesan
+4. Jalankan server:
+```bash
+npm start
+```
 
-## Tips untuk Hasil Terbaik
+5. Buka `http://localhost:3000` di browser Anda
 
-1. **Kualitas Gambar**
-   - Gunakan gambar dengan resolusi tinggi
-   - Pastikan teks kontras dengan latar belakang
-   - Hindari gambar yang buram
+## Penggunaan
 
-2. **Format Teks**
-   - Gunakan font standar
-   - Ukuran teks yang sesuai
-   - Teks harus sejajar
-   - Hindari teks yang tumpang tindih
+1. Upload gambar atau ambil foto
+2. Pilih mode pemrosesan:
+   - Original: Gambar asli
+   - Grayscale: Konversi ke grayscale
+   - Median: Filter median
+   - Adaptive: Adaptive thresholding
+   - Full: Pemrosesan lengkap
+3. Klik "Kenali Teks"
+4. Tunggu hasil analisis
 
-3. **Kondisi Pencahayaan**
-   - Gunakan pencahayaan yang baik
-   - Hindari bayangan
-   - Hindari silau pada teks
+## Deployment
 
-4. **Penggunaan**
-   - Tunggu hingga pemrosesan selesai
-   - Perhatikan tingkat kepercayaan hasil
-   - Coba mode pemrosesan berbeda jika hasil kurang akurat
+1. Siapkan server Node.js
+2. Set environment variable `GEMINI_API_KEY`
+3. Deploy kode ke server
+4. Jalankan `npm start`
 
-## Teknologi yang Digunakan
+## Keamanan
+
+- API key disimpan di environment variable server
+- Tidak ada API key yang terekspos di client
+- Gunakan HTTPS untuk keamanan tambahan
+
+## Teknologi
 
 - Tesseract.js untuk OCR
-- TensorFlow.js untuk pemrosesan gambar
-- HTML5 Canvas untuk menggambar
-- WebRTC untuk akses kamera
-
-## Persyaratan Sistem
-
-- Browser modern (Chrome, Firefox, Edge)
-- Akses kamera (untuk fitur kamera)
-- Koneksi internet (untuk memuat model AI)
+- TensorFlow.js untuk machine learning
+- Google Gemini API untuk analisis gambar
+- OpenCV.js untuk pemrosesan gambar
+- Express.js untuk backend
+- Node.js untuk server
 
 ## Lisensi
 
-Proyek ini dilisensikan di bawah [MIT License](LICENSE).
-
-## Kontribusi
-
-Kontribusi selalu diterima! Silakan buat pull request atau buka issue untuk diskusi.
-
-## Kontak
-
-Jika Anda memiliki pertanyaan atau saran, silakan buka issue di repositori ini.
+MIT License

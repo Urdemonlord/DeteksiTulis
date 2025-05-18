@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pengenalan Tulisan Tangan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <script src="https://docs.opencv.org/4.5.4/opencv.js" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js"></script>
+    <script src="config.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            color: #2d3748;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2, h3, h4 {
+            color: #1a202c;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            color: #2b6cb0;
+        }
+
+        .input-section, .drawing-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: crosshair;
+            background: white;
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #3182ce;
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-upload {
+            background-color: #48bb78;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover {
+            background-color: #38a169;
+        }
+
+        #videoElement, #capturedImage {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress {
+            width: 0%;
+            height: 100%;
+            background-color: #4299e1;
+            transition: width 0.3s ease-in-out;
+        }
+
+        .result-container {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .confidence-high { color: #48bb78; }
+        .confidence-medium { color: #ed8936; }
+        .confidence-low { color: #e53e3e; }
+
+        .image-options {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .image-options label {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 20px;
+            cursor: pointer;
+        }
+
+        .image-options input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .preview-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .preview-image {
+            width: 100%;
+            height: auto;
+            border-radius: 6px;
+        }
+
+        .error-message {
+            background-color: #fff5f5;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #feb2b2;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .preview-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #loading {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .gemini-result {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bae6fd;
+        }
+        
+        .gemini-result h4 {
+            color: #0369a1;
+            margin-bottom: 10px;
+        }
+        
+        .gemini-result p {
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pengenalan Tulisan Tangan</h1>
+        
+        <div class="input-section">
+            <h3>Metode Input:</h3>
+            <label class="file-upload">
+                Pilih Gambar
+                <input type="file" id="imageUpload" accept="image/*" onchange="handleImageUpload(event)">
+            </label>
+            <div class="button-group">
+                <button onclick="toggleCamera()">Buka Kamera</button>
+                <button onclick="captureFromCamera()">Ambil Foto</button>
+                <button onclick="stopCamera()">Tutup Kamera</button>
+            </div>
+            <video id="videoElement" autoplay playsinline></video>
+            <img id="capturedImage" alt="Gambar yang Diambil">
+            <div id="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p>Memproses gambar...</p>
+                <div class="progress-bar">
+                    <div class="progress" id="progressBar"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="drawing-section">
+            <h3>Gambar di Sini:</h3>
+            <canvas id="canvas" width="400" height="400"></canvas>
+            <div class="button-group">
+                <button onclick="recognize()">Kenali Gambar</button>
+                <button onclick="recognizeImage()">Kenali Teks</button>
+                <button onclick="clearCanvas()">Hapus</button>
+            </div>
+        </div>
+
+        <div class="image-options">
+            <h4>Opsi Pemrosesan Gambar:</h4>
+            <label>
+                <input type="radio" name="imageMode" value="original" checked> Gambar Asli
+            </label>
+            <label>
+                <input type="radio" name="imageMode" value="grayscale"> Grayscale
+            </label>
+            <label>
+                <input type="radio" name="imageMode" value="median"> Median Filter
+            </label>
+            <label>
+                <input type="radio" name="imageMode" value="adaptive"> Adaptive Threshold
+            </label>
+            <label>
+                <input type="radio" name="imageMode" value="full"> Full Processing
+            </label>
+        </div>
+
+        <div class="preview-container">
+            <div class="preview-box">
+                <h4>Gambar Asli</h4>
+                <img id="originalPreview" class="preview-image">
+            </div>
+            <div class="preview-box">
+                <h4>Gambar Diproses</h4>
+                <img id="processedPreview" class="preview-image">
+            </div>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script src="handwriting.canvas.js"></script>
+    <script>
+        var canvas = new handwriting.Canvas(document.getElementById("canvas"));
+        let stream = null;
+        let mobilenetModel = null;
+        let cocoSsdModel = null;
+        let worker = null;
+        let geminiApiKey = null;
+        
+        // Fungsi untuk mendapatkan API key dari server
+        async function getGeminiApiKey() {
+            try {
+                const response = await fetch('/api/get-key');
+                if (!response.ok) {
+                    throw new Error('Failed to get API key');
+                }
+                const data = await response.json();
+                return data.apiKey;
+            } catch (error) {
+                console.error('Error getting API key:', error);
+                return null;
+            }
+        }
+
+        // Inisialisasi semua model
+        async function initModels() {
+            try {
+                // Inisialisasi Tesseract
+                if (!worker) {
+                    worker = await Tesseract.createWorker({
+                        logger: m => {
+                            if (m.status === 'recognizing text') {
+                                const progress = Math.round(m.progress * 100);
+                                document.getElementById('progressBar').style.width = `${progress}%`;
+                            }
+                        }
+                    });
+                    await worker.loadLanguage('ind');
+                    await worker.initialize('ind');
+                    
+                    // Optimasi parameter Tesseract untuk hasil lebih akurat
+                    await worker.setParameters({
+                        tessedit_char_whitelist: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?@#$%^&*()_+-=[]{}|;:"\'<>/ ',
+                        tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+                        preserve_interword_spaces: '1',
+                        tessedit_ocr_engine_mode: '1',
+                        textord_heavy_nr: '1',
+                        textord_min_linesize: '2.5',
+                        textord_max_linesize: '3.5',
+                        textord_parallel_baselines: '1',
+                        textord_parallel_lines: '1',
+                        textord_parallel_boxes: '1',
+                        textord_parallel_skew: '1',
+                        textord_parallel_skew_angle: '0.1',
+                        textord_parallel_skew_angle_tolerance: '0.1'
+                    });
+                }
+
+                // Inisialisasi MobileNet untuk klasifikasi gambar
+                if (!mobilenetModel) {
+                    mobilenetModel = await mobilenet.load();
+                }
+
+                // Inisialisasi COCO-SSD untuk deteksi objek
+                if (!cocoSsdModel) {
+                    cocoSsdModel = await cocoSsd.load();
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Error initializing models:', error);
+                return false;
+            }
+        }
+
+        // Fungsi untuk menganalisis gambar dengan Gemini
+        async function analyzeWithGemini(imageData) {
+            try {
+                // Dapatkan API key jika belum ada
+                if (!geminiApiKey) {
+                    geminiApiKey = await getGeminiApiKey();
+                    if (!geminiApiKey) {
+                        throw new Error('API key tidak tersedia');
+                    }
+                }
+
+                // Konversi gambar ke base64
+                const base64Image = imageData.toDataURL('image/jpeg').split(',')[1];
+                
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                {
+                                    text: "Analisis gambar ini secara detail. Berikan informasi tentang:\n1. Teks yang terlihat\n2. Objek yang terdeteksi\n3. Deskripsi umum gambar\n4. Konteks dan makna"
+                                },
+                                {
+                                    inline_data: {
+                                        mime_type: "image/jpeg",
+                                        data: base64Image
+                                    }
+                                }
+                            ]
+                        }],
+                        generationConfig: {
+                            temperature: 0.4,
+                            topK: 32,
+                            topP: 1,
+                            maxOutputTokens: 2048,
+                        },
+                        safetySettings: [
+                            {
+                                category: "HARM_CATEGORY_HARASSMENT",
+                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_HATE_SPEECH",
+                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                            },
+                            {
+                                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                            }
+                        ]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
+                }
+
+                const result = await response.json();
+                if (!result.candidates || !result.candidates[0] || !result.candidates[0].content) {
+                    throw new Error('Invalid response format from Gemini API');
+                }
+                return result.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error('Error analyzing with Gemini:', error);
+                return null;
+            }
+        }
+
+        // Fungsi untuk menganalisis gambar secara menyeluruh
+        async function analyzeImage(imageData) {
+            const results = {
+                text: null,
+                objects: [],
+                labels: [],
+                confidence: 0
+            };
+
+            try {
+                // Pastikan semua model sudah diinisialisasi
+                const initialized = await initModels();
+                if (!initialized) {
+                    throw new Error('Gagal menginisialisasi model AI');
+                }
+
+                // 1. Deteksi objek dengan COCO-SSD
+                try {
+                    if (cocoSsdModel) {
+                        const predictions = await cocoSsdModel.detect(imageData);
+                        results.objects = predictions.map(pred => ({
+                            label: pred.class,
+                            confidence: pred.score,
+                            bbox: pred.bbox
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Error in object detection:', error);
+                }
+
+                // 2. Klasifikasi gambar dengan MobileNet
+                try {
+                    if (mobilenetModel) {
+                        const predictions2 = await mobilenetModel.classify(imageData);
+                        results.labels = predictions2.map(pred => ({
+                            label: pred.className,
+                            confidence: pred.probability
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Error in image classification:', error);
+                }
+
+                // 3. Pengenalan teks dengan Tesseract
+                try {
+                    if (worker) {
+                        const { data: { text, confidence } } = await worker.recognize(imageData);
+                        if (text) {
+                            results.text = text
+                                .replace(/[^\w\s.,!?@#$%^&*()_+\-=\[\]{}|;:"'<>/]/g, '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/([.,!?])\s*/g, '$1 ')
+                                .replace(/\s+([.,!?])/g, '$1')
+                                .trim();
+                        }
+                        results.confidence = confidence;
+                    }
+                } catch (error) {
+                    console.error('Error in text recognition:', error);
+                }
+
+                return results;
+            } catch (error) {
+                console.error('Error analyzing image:', error);
+                return results;
+            }
+        }
+
+        // Modifikasi fungsi recognizeImage untuk menangani error dengan lebih baik
+        async function recognizeImage() {
+            const loading = document.getElementById('loading');
+            const progressBar = document.getElementById('progressBar');
+            const result = document.getElementById('result');
+            
+            try {
+                const canvasData = canvas.canvas.toDataURL();
+                if (canvasData === 'data:,' || canvasData === 'data:image/png;base64,') {
+                    throw new Error('Canvas kosong. Silakan gambar atau upload gambar terlebih dahulu.');
+                }
+
+                loading.style.display = 'block';
+                result.innerHTML = "Menginisialisasi model AI...";
+                
+                // Inisialisasi model terlebih dahulu
+                const initialized = await initModels();
+                if (!initialized) {
+                    throw new Error('Gagal menginisialisasi model AI. Silakan refresh halaman dan coba lagi.');
+                }
+
+                result.innerHTML = "Menganalisis gambar...";
+                const mode = document.querySelector('input[name="imageMode"]:checked').value;
+                const img = new Image();
+                
+                img.onload = async () => {
+                    try {
+                        const processedCanvas = processImage(img, mode);
+                        const processedPreview = document.getElementById('processedPreview');
+                        processedPreview.src = processedCanvas.toDataURL();
+                        
+                        // Analisis dengan model lokal terlebih dahulu
+                        const localAnalysis = await analyzeImage(processedCanvas);
+                        
+                        // Tampilkan hasil
+                        let resultHTML = '<div class="result-container">';
+                        
+                        // Hasil dari model lokal
+                        if (localAnalysis.text) {
+                            resultHTML += `
+                                <div class="text-result">
+                                    <h4>Teks Terdeteksi:</h4>
+                                    ${localAnalysis.text}<br>
+                                    <small class="confidence-${localAnalysis.confidence >= 80 ? 'high' : localAnalysis.confidence >= 60 ? 'medium' : 'low'}">
+                                        Tingkat kepercayaan: ${Math.round(localAnalysis.confidence)}%
+                                    </small>
+                                </div>
+                            `;
+                        }
+                        
+                        if (localAnalysis.objects.length > 0) {
+                            resultHTML += `
+                                <div class="objects-result">
+                                    <h4>Objek Terdeteksi:</h4>
+                                    <ul>
+                                        ${localAnalysis.objects.map(obj => `
+                                            <li>${obj.label} (${Math.round(obj.confidence * 100)}%)</li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            `;
+                        }
+
+                        // Analisis dengan Gemini setelah menampilkan hasil lokal
+                        try {
+                            result.innerHTML = resultHTML + '<div class="loading-message">Menganalisis dengan Gemini...</div>';
+                            const geminiAnalysis = await analyzeWithGemini(processedCanvas);
+                            
+                            if (geminiAnalysis) {
+                                resultHTML += `
+                                    <div class="gemini-result">
+                                        <h4>Analisis Detail:</h4>
+                                        <p>${geminiAnalysis}</p>
+                                    </div>
+                                `;
+                            }
+                        } catch (error) {
+                            console.error('Error in Gemini analysis:', error);
+                            resultHTML += `
+                                <div class="error-message">
+                                    <h4>Analisis Gemini:</h4>
+                                    <p>Gagal mendapatkan analisis dari Gemini: ${error.message}</p>
+                                </div>
+                            `;
+                        }
+                        
+                        resultHTML += '</div>';
+                        result.innerHTML = resultHTML;
+                    } catch (error) {
+                        console.error('Error dalam pemrosesan gambar:', error);
+                        result.innerHTML = `<div class="error-message">Gagal memproses gambar: ${error.message}</div>`;
+                    } finally {
+                        loading.style.display = 'none';
+                        progressBar.style.width = '0%';
+                    }
+                };
+
+                img.onerror = () => {
+                    throw new Error('Gagal memuat gambar');
+                };
+
+                img.src = canvas.canvas.toDataURL();
+            } catch (error) {
+                console.error('Error detail:', error);
+                result.innerHTML = `<div class="error-message">${error.message}</div>`;
+                loading.style.display = 'none';
+                progressBar.style.width = '0%';
+            }
+        }
+
+        // Tambahkan style untuk hasil Gemini
+        const style = document.createElement('style');
+        style.textContent = `
+            .gemini-result {
+                background: #f0f9ff;
+                padding: 15px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border: 1px solid #bae6fd;
+            }
+            
+            .gemini-result h4 {
+                color: #0369a1;
+                margin-bottom: 10px;
+            }
+            
+            .gemini-result p {
+                white-space: pre-wrap;
+                line-height: 1.6;
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Fungsi untuk membersihkan model saat halaman ditutup
+        window.addEventListener('beforeunload', async () => {
+            if (worker) {
+                await worker.terminate();
+                worker = null;
+            }
+            mobilenetModel = null;
+            cocoSsdModel = null;
+        });
+
+        // Fungsi untuk memproses gambar dengan preprocessing yang lebih baik
+        function processImage(imageData, mode) {
+            try {
+                if (!imageData || !imageData.width || !imageData.height) {
+                    throw new Error('Gambar tidak valid atau belum dimuat');
+                }
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = imageData.width;
+                canvas.height = imageData.height;
+                ctx.drawImage(imageData, 0, 0);
+
+                if (canvas.width === 0 || canvas.height === 0) {
+                    throw new Error('Canvas tidak valid');
+                }
+
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                if (!imgData || !imgData.data) {
+                    throw new Error('Gagal mendapatkan data gambar');
+                }
+
+                const data = imgData.data;
+
+                switch(mode) {
+                    case 'original':
+                        return canvas;
+
+                    case 'grayscale':
+                        // Konversi ke grayscale dengan bobot yang lebih baik
+                        for (let i = 0; i < data.length; i += 4) {
+                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            data[i] = data[i + 1] = data[i + 2] = avg;
+                        }
+                        break;
+
+                    case 'median':
+                        // Konversi ke grayscale dulu
+                        for (let i = 0; i < data.length; i += 4) {
+                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            data[i] = data[i + 1] = data[i + 2] = avg;
+                        }
+                        
+                        // Terapkan median filter dengan kernel size yang lebih besar
+                        const tempData = new Uint8ClampedArray(data);
+                        const kernelSize = 5; // Ukuran kernel ditingkatkan
+                        for (let y = kernelSize; y < canvas.height - kernelSize; y++) {
+                            for (let x = kernelSize; x < canvas.width - kernelSize; x++) {
+                                const idx = (y * canvas.width + x) * 4;
+                                const neighbors = [];
+                                
+                                for (let ky = -kernelSize; ky <= kernelSize; ky++) {
+                                    for (let kx = -kernelSize; kx <= kernelSize; kx++) {
+                                        const nidx = ((y + ky) * canvas.width + (x + kx)) * 4;
+                                        neighbors.push(tempData[nidx]);
+                                    }
+                                }
+                                
+                                neighbors.sort((a, b) => a - b);
+                                data[idx] = data[idx + 1] = data[idx + 2] = neighbors[Math.floor(neighbors.length / 2)];
+                            }
+                        }
+                        break;
+
+                    case 'adaptive':
+                        // Konversi ke grayscale dulu
+                        for (let i = 0; i < data.length; i += 4) {
+                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            data[i] = data[i + 1] = data[i + 2] = avg;
+                        }
+                        
+                        // Adaptive thresholding dengan parameter yang dioptimalkan
+                        const blockSize = 35; // Ukuran blok ditingkatkan
+                        const C = 7; // Konstanta ditingkatkan untuk kontras yang lebih baik
+                        for (let y = 0; y < canvas.height; y++) {
+                            for (let x = 0; x < canvas.width; x++) {
+                                const idx = (y * canvas.width + x) * 4;
+                                
+                                let sum = 0;
+                                let count = 0;
+                                for (let by = Math.max(0, y - blockSize); by <= Math.min(canvas.height - 1, y + blockSize); by++) {
+                                    for (let bx = Math.max(0, x - blockSize); bx <= Math.min(canvas.width - 1, x + blockSize); bx++) {
+                                        const bidx = (by * canvas.width + bx) * 4;
+                                        sum += data[bidx];
+                                        count++;
+                                    }
+                                }
+                                const threshold = (sum / count) - C;
+                                
+                                const value = data[idx] > threshold ? 255 : 0;
+                                data[idx] = data[idx + 1] = data[idx + 2] = value;
+                            }
+                        }
+                        break;
+
+                    case 'full':
+                        // Konversi ke grayscale
+                        for (let i = 0; i < data.length; i += 4) {
+                            const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                            data[i] = data[i + 1] = data[i + 2] = avg;
+                        }
+                        
+                        // Median filter
+                        const tempData2 = new Uint8ClampedArray(data);
+                        const kernelSize2 = 5;
+                        for (let y = kernelSize2; y < canvas.height - kernelSize2; y++) {
+                            for (let x = kernelSize2; x < canvas.width - kernelSize2; x++) {
+                                const idx = (y * canvas.width + x) * 4;
+                                const neighbors = [];
+                                
+                                for (let ky = -kernelSize2; ky <= kernelSize2; ky++) {
+                                    for (let kx = -kernelSize2; kx <= kernelSize2; kx++) {
+                                        const nidx = ((y + ky) * canvas.width + (x + kx)) * 4;
+                                        neighbors.push(tempData2[nidx]);
+                                    }
+                                }
+                                
+                                neighbors.sort((a, b) => a - b);
+                                data[idx] = data[idx + 1] = data[idx + 2] = neighbors[Math.floor(neighbors.length / 2)];
+                            }
+                        }
+                        
+                        // Adaptive thresholding
+                        const blockSize2 = 35;
+                        const C2 = 7;
+                        for (let y = 0; y < canvas.height; y++) {
+                            for (let x = 0; x < canvas.width; x++) {
+                                const idx = (y * canvas.width + x) * 4;
+                                
+                                let sum = 0;
+                                let count = 0;
+                                for (let by = Math.max(0, y - blockSize2); by <= Math.min(canvas.height - 1, y + blockSize2); by++) {
+                                    for (let bx = Math.max(0, x - blockSize2); bx <= Math.min(canvas.width - 1, x + blockSize2); bx++) {
+                                        const bidx = (by * canvas.width + bx) * 4;
+                                        sum += data[bidx];
+                                        count++;
+                                    }
+                                }
+                                const threshold = (sum / count) - C2;
+                                
+                                const value = data[idx] > threshold ? 255 : 0;
+                                data[idx] = data[idx + 1] = data[idx + 2] = value;
+                            }
+                        }
+
+                        // Tambahan: Noise reduction
+                        const noiseReduction = new Uint8ClampedArray(data);
+                        for (let y = 1; y < canvas.height - 1; y++) {
+                            for (let x = 1; x < canvas.width - 1; x++) {
+                                const idx = (y * canvas.width + x) * 4;
+                                const neighbors = [
+                                    noiseReduction[idx - 4],
+                                    noiseReduction[idx + 4],
+                                    noiseReduction[idx - canvas.width * 4],
+                                    noiseReduction[idx + canvas.width * 4]
+                                ];
+                                
+                                const avg = neighbors.reduce((a, b) => a + b, 0) / neighbors.length;
+                                if (Math.abs(data[idx] - avg) > 50) {
+                                    data[idx] = data[idx + 1] = data[idx + 2] = avg;
+                                }
+                            }
+                        }
+                        break;
+                }
+
+                ctx.putImageData(imgData, 0, 0);
+                return canvas;
+            } catch (error) {
+                console.error('Error dalam processImage:', error);
+                throw error;
+            }
+        }
+
+        // Set callback untuk menampilkan hasil
+        canvas.setCallBack(function(data, err) {
+            if(err) {
+                document.getElementById("result").innerHTML = "Error: " + err;
+            } else {
+                document.getElementById("result").innerHTML = "Hasil: " + data.join(", ");
+            }
+        });
+
+        // Set opsi untuk bahasa Indonesia
+        canvas.setOptions({
+            language: "id",
+            numOfReturn: 5
+        });
+
+        function recognize() {
+            canvas.recognize();
+        }
+
+        function clearCanvas() {
+            canvas.erase();
+            document.getElementById("result").innerHTML = "";
+        }
+
+        // Perbaikan fungsi kamera
+        async function toggleCamera() {
+            const videoElement = document.getElementById('videoElement');
+            const button = document.querySelector('button[onclick="toggleCamera()"]');
+            
+            try {
+                if (videoElement.style.display === 'none' || !videoElement.style.display) {
+                    button.textContent = 'Menutup Kamera...';
+                    button.disabled = true;
+                    
+                    const constraints = {
+                        video: {
+                            facingMode: 'environment',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        }
+                    };
+                    
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        videoElement.srcObject = stream;
+                        videoElement.style.display = 'block';
+                        document.getElementById('capturedImage').style.display = 'none';
+                        
+                        // Tunggu video siap
+                        await new Promise((resolve) => {
+                            videoElement.onloadedmetadata = () => {
+                                resolve();
+                            };
+                        });
+                        
+                        button.textContent = 'Tutup Kamera';
+                        button.disabled = false;
+                    } catch (err) {
+                        console.error("Error accessing camera:", err);
+                        alert("Tidak dapat mengakses kamera. Pastikan Anda memberikan izin akses kamera dan menggunakan browser yang mendukung (Chrome, Firefox, atau Edge).");
+                        button.textContent = 'Buka Kamera';
+                        button.disabled = false;
+                    }
+                } else {
+                    button.textContent = 'Menutup Kamera...';
+                    button.disabled = true;
+                    stopCamera();
+                    button.textContent = 'Buka Kamera';
+                    button.disabled = false;
+                }
+            } catch (error) {
+                console.error("Error in toggleCamera:", error);
+                alert("Terjadi kesalahan saat mengakses kamera. Silakan coba lagi.");
+                button.textContent = 'Buka Kamera';
+                button.disabled = false;
+            }
+        }
+
+        // Perbaikan fungsi stopCamera
+        function stopCamera() {
+            const videoElement = document.getElementById('videoElement');
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+                stream = null;
+            }
+            if (videoElement.srcObject) {
+                videoElement.srcObject = null;
+            }
+            videoElement.style.display = 'none';
+        }
+
+        // Perbaikan fungsi captureFromCamera
+        function captureFromCamera() {
+            const videoElement = document.getElementById('videoElement');
+            const capturedImage = document.getElementById('capturedImage');
+            
+            if (!videoElement.srcObject) {
+                alert('Kamera belum dibuka. Silakan buka kamera terlebih dahulu.');
+                return;
+            }
+            
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                // Gambar frame video ke canvas
+                ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                
+                // Tampilkan gambar yang ditangkap
+                capturedImage.src = canvas.toDataURL();
+                capturedImage.style.display = 'block';
+                
+                // Gambar ke canvas utama
+                const mainCanvas = document.getElementById('canvas');
+                const mainCtx = mainCanvas.getContext('2d');
+                mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+                
+                // Hitung rasio untuk memastikan gambar pas di canvas
+                const ratio = Math.min(
+                    mainCanvas.width / canvas.width,
+                    mainCanvas.height / canvas.height
+                );
+                
+                const newWidth = canvas.width * ratio;
+                const newHeight = canvas.height * ratio;
+                const x = (mainCanvas.width - newWidth) / 2;
+                const y = (mainCanvas.height - newHeight) / 2;
+                
+                mainCtx.drawImage(canvas, x, y, newWidth, newHeight);
+                
+                // Tampilkan preview gambar asli
+                const originalPreview = document.getElementById('originalPreview');
+                originalPreview.src = canvas.toDataURL();
+                
+                // Proses dan tampilkan preview gambar yang diproses
+                const mode = document.querySelector('input[name="imageMode"]:checked').value;
+                const processedCanvas = processImage(canvas, mode);
+                const processedPreview = document.getElementById('processedPreview');
+                processedPreview.src = processedCanvas.toDataURL();
+                
+            } catch (error) {
+                console.error('Error capturing image:', error);
+                alert('Gagal mengambil gambar. Silakan coba lagi.');
+            }
+        }
+
+        // Tambahkan event listener untuk membersihkan kamera saat halaman ditutup
+        window.addEventListener('beforeunload', () => {
+            stopCamera();
+        });
+
+        // Tambahkan event listener untuk menangani perubahan izin kamera
+        navigator.mediaDevices.addEventListener('permissionchange', (event) => {
+            if (event.target.state === 'denied') {
+                stopCamera();
+                alert('Akses kamera ditolak. Silakan izinkan akses kamera di pengaturan browser Anda.');
+            }
+        });
+
+        // Modifikasi fungsi handleImageUpload
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                alert('Silakan pilih file gambar terlebih dahulu');
+                return;
+            }
+
+            if (!file.type.match('image.*')) {
+                alert('File yang dipilih bukan gambar');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    try {
+                        const ctx = canvas.cxt;
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        
+                        const ratio = Math.min(
+                            canvas.width / img.width,
+                            canvas.height / img.height
+                        );
+                        
+                        const newWidth = img.width * ratio;
+                        const newHeight = img.height * ratio;
+                        const x = (canvas.width - newWidth) / 2;
+                        const y = (canvas.height - newHeight) / 2;
+                        
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, x, y, newWidth, newHeight);
+                        
+                        // Tampilkan preview gambar asli
+                        const originalPreview = document.getElementById('originalPreview');
+                        originalPreview.src = e.target.result;
+                        
+                        // Proses dan tampilkan preview gambar yang diproses
+                        const mode = document.querySelector('input[name="imageMode"]:checked').value;
+                        const processedCanvas = processImage(img, mode);
+                        const processedPreview = document.getElementById('processedPreview');
+                        processedPreview.src = processedCanvas.toDataURL();
+                        
+                        // Tampilkan gambar yang diupload
+                        const capturedImage = document.getElementById('capturedImage');
+                        capturedImage.src = e.target.result;
+                        capturedImage.style.display = 'block';
+                        
+                        document.getElementById('result').innerHTML = '';
+                    } catch (error) {
+                        console.error('Error saat memproses gambar:', error);
+                        alert('Terjadi kesalahan saat memproses gambar');
+                    }
+                };
+                
+                img.onerror = function() {
+                    alert('Gagal memuat gambar');
+                };
+                
+                img.src = e.target.result;
+            };
+            
+            reader.onerror = function() {
+                alert('Gagal membaca file');
+            };
+            
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html> 
