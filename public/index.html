@@ -500,11 +500,8 @@
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
-                if (!window.appConfig || !window.appConfig.apiUrl) {
-                    throw new Error('Konfigurasi tidak tersedia. Silakan refresh halaman.');
-                }
-
-                const response = await fetch(`${window.appConfig.apiUrl}/api/get-key`);
+                // Coba dapatkan API key dari environment variable
+                const response = await fetch('/api/get-key');
                 if (!response.ok) {
                     throw new Error(`Failed to get API key: ${response.status} ${response.statusText}`);
                 }

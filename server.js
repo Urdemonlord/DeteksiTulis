@@ -27,12 +27,20 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 app.get('/api/get-key', (req, res) => {
     try {
         if (!GEMINI_API_KEY) {
+            console.error('GEMINI_API_KEY tidak ditemukan di environment variables');
             return res.status(500).json({ 
                 error: 'API key tidak dikonfigurasi',
                 message: 'Silakan konfigurasi GEMINI_API_KEY di environment variables'
             });
         }
-        res.json({ apiKey: GEMINI_API_KEY });
+
+        // Log untuk debugging (jangan tampilkan full API key)
+        console.log('API key tersedia:', GEMINI_API_KEY.substring(0, 5) + '...');
+        
+        res.json({ 
+            apiKey: GEMINI_API_KEY,
+            status: 'success'
+        });
     } catch (error) {
         console.error('Error in /api/get-key:', error);
         res.status(500).json({ 
@@ -42,9 +50,17 @@ app.get('/api/get-key', (req, res) => {
     }
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'ok',
+        apiKeyConfigured: !!GEMINI_API_KEY
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    console.error('Server error:', err.stack);
     res.status(500).json({
         error: 'Terjadi kesalahan server',
         message: err.message
@@ -53,4 +69,7 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
     console.log(`Server berjalan di port ${port}`);
+    console.log('Environment variables:');
+    console.log('- GEMINI_API_KEY:', GEMINI_API_KEY ? 'Terkonfigurasi' : 'Tidak terkonfigurasi');
+    console.log('- ALLOWED_ORIGINS:', process.env.ALLOWED_ORIGINS || '*');
 }); 
