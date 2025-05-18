@@ -3,13 +3,16 @@
 <head>
     <title>Pengenalan Tulisan Tangan</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
-    <script src="https://docs.opencv.org/4.5.4/opencv.js" async></script>
-    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js"></script>
+    <!-- Load config.js first -->
     <script src="config.js"></script>
+    <!-- Load other scripts with defer -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0/dist/tf.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" defer></script>
+    <script src="https://docs.opencv.org/4.5.4/opencv.js" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.1.3/dist/index.min.js" defer></script>
+    <script src="handwriting.canvas.js" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * {
@@ -322,7 +325,6 @@
         <div id="result"></div>
     </div>
 
-    <script src="handwriting.canvas.js"></script>
     <script>
         var canvas = new handwriting.Canvas(document.getElementById("canvas"));
         let stream = null;
@@ -334,6 +336,10 @@
         // Fungsi untuk mendapatkan API key dari server
         async function getGeminiApiKey() {
             try {
+                if (!window.appConfig || !window.appConfig.apiUrl) {
+                    throw new Error('Konfigurasi tidak tersedia. Silakan refresh halaman.');
+                }
+
                 const response = await fetch(`${window.appConfig.apiUrl}/api/get-key`);
                 if (!response.ok) {
                     throw new Error(`Failed to get API key: ${response.status} ${response.statusText}`);
