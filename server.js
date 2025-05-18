@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const app = express();
-const port = process.env.PORT || 3000;
 
 // Rate limiting
 const limiter = rateLimit({
@@ -12,7 +11,7 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(cors({
-    origin: '*', // Izinkan semua origin untuk development
+    origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -69,10 +68,16 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
-app.listen(port, () => {
-    console.log(`Server berjalan di port ${port}`);
-    console.log('Environment variables:');
-    console.log('- GEMINI_API_KEY:', GEMINI_API_KEY ? 'Terkonfigurasi' : 'Tidak terkonfigurasi');
-    console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
-}); 
+// Export app untuk Vercel
+module.exports = app;
+
+// Start server hanya jika tidak di Vercel
+if (process.env.NODE_ENV !== 'production') {
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+        console.log(`Server berjalan di port ${port}`);
+        console.log('Environment variables:');
+        console.log('- GEMINI_API_KEY:', GEMINI_API_KEY ? 'Terkonfigurasi' : 'Tidak terkonfigurasi');
+        console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
+    });
+} 
